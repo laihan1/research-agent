@@ -1,1 +1,11 @@
-topic,rounds_used,num_sources,citation_support_rate,usability,notes
+﻿topic,rounds_used,num_sources,citation_support_rate,usability,notes
+SQLite vs PostgreSQL for small web apps,1,10,是 (6/6),高,"status=ok; 来源覆盖对比评测与官方实践"
+WebAssembly use cases in 2026,1,8,是 (6/6),高,"status=ok; 覆盖 WASI Preview 2 与多领域用例"
+Pros and cons of microservices vs monolith,1,10,是 (7/7),高,"status=ok; 来源含 IBM/Shopify/GFG，正反面均衡"
+How does Retrieval-Augmented Generation (RAG) work,1,5,是 (5/5),高,"status=ok; 来源含 AWS/Databricks，概念清晰"
+Solid-state batteries commercialization status,1,10,是 (7/7),高,"status=ok; 含厂商时间表与技术瓶颈分析"
+Rust vs Go for backend services,2,0,否 (0/0),低,"status=degraded; DuckDuckGo 连续无结果触发降级保护"
+Open-source LLM inference engines comparison vLLM vs llama.cpp,1,10,是 (7/7),高,"status=ok; 含 Red Hat 与 GitHub 实测基准"
+Impact of remote work on software engineering productivity,1,15,是 (7/7),中,"status=ok; 含元分析与行业报告，部分来源偏博客"
+Zero trust security architecture basics,1,9,是 (8/8),中,"status=ok; 含 NIST/CISA/Microsoft，但混入 2 条广告跳转 URL"
+Edge AI deployment on consumer hardware,1,14,是 (7/7),高,"status=ok; 覆盖硬件对比与端侧量化部署"
