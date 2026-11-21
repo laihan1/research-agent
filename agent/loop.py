@@ -123,12 +123,14 @@ def _generate_report(topic: str, results: list[SearchResult]) -> dict:
                 "background": data.get("background", ""),
                 "findings": findings,
                 "disagreements": data.get("disagreements", []),
+                "degraded": False,
             }
     _log("generate fallback triggered (parse failure)")
     return {
         "background": f"Research on '{topic}' based on {len(results)} sources.",
         "findings": [{"claim": f"{r.title}: {r.snippet[:200]}", "source": r.url} for r in results[:10]],
         "disagreements": [],
+        "degraded": True,
     }
 
 
@@ -144,11 +146,6 @@ def run(topic: str) -> Report:
             t0 = time.perf_counter()
             if queries is None:
                 queries = _plan_queries(topic)
-            steps.append(Step(
-                round=round_no, action="plan",
-                input={"topic": topic}, output={"queries": queries},
-                duration_ms=int((time.perf_counter() - t0) * 1000),
-            ))
 
             t0 = time.perf_counter()
             round_results = []
@@ -209,7 +206,7 @@ def run(topic: str) -> Report:
                 duration_ms=int((time.perf_counter() - t0) * 1000),
             ))
 
-            status = "ok" if findings else "degraded"
+            status = "ok" if (findings and not content.get("degraded")) else "degraded"
             report = Report(
                 topic=topic,
                 background=content.get("background", ""),
