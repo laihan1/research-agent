@@ -35,3 +35,52 @@ User Topic (Streamlit UI: app.py)
                  │
                  ▼
          追加日志至 data/runs.jsonl & 返回 Report
+```
+
+## Non-goals（刻意不做）
+
+- 不做多搜索源聚合。
+- 不做自动评分（评估依赖人工判断引用支持度与整体可用性）。
+- 不做用户系统、不做历史记录管理。
+- 不绑定任何单一 LLM 供应商。
+
+## 评估结果摘要
+
+在 10 个不同领域的技术与行业主题上进行了端到端实测与人工评估，完整记录见 [`data/eval.csv`](data/eval.csv)：
+
+| 指标 | 实测结果 | 说明 |
+| :--- | :--- | :--- |
+| **任务成功率** | **9 / 10 (`status=ok`)** | 1 个主题因 DuckDuckGo 连续无结果触发 `degraded` 降级保护（零崩溃） |
+| **引用支持度** | **100% (60 / 60)** | 9 份有效报告共 60 条关键发现，全部附带可点击来源 URL |
+| **整体可用性** | **7 高 / 2 中 / 1 低** | 9 份有效报告均可作为调研起点 |
+
+**已知局限**：免费 DuckDuckGo 搜索偶发空结果限流，且极少数查询结果会混入搜索引擎广告跳转链接（如 `bing.com/aclick`），已在 `data/eval.csv` 备注中如实记录。
+
+## 本地运行与测试
+
+1. **安装依赖（Python 3.11+）**
+   ```bash
+   python -m venv .venv
+   # Windows PowerShell:
+   .\.venv\Scripts\Activate.ps1
+   # macOS / Linux:
+   # source .venv/bin/activate
+
+   pip install -r requirements.txt
+   ```
+
+2. **配置环境变量**
+   ```bash
+   cp .env.example .env
+   ```
+   在 `.env` 中填入至少一个可用的 API Key（推荐 `GROQ_API_KEY`），所有密钥均通过环境变量读取，不硬编码。
+
+3. **启动应用**
+   ```bash
+   streamlit run app.py
+   ```
+
+4. **运行单元测试**（覆盖搜索超时/空结果降级、LLM 三级切换、步数上限终止与异常兜底）
+   ```bash
+   python -m pytest tests/ -v
+   ```
