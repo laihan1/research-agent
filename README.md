@@ -1,24 +1,37 @@
 # AI Research Agent
 
-輸入一個研究主題，自動進行多輪聯網搜尋並輸出帶來源引用的結構化研究報告。
+> **在线体验（Live Demo）**：[https://laihan1-research-agent.streamlit.app/](https://laihan1-research-agent.streamlit.app/)
 
-## 核心設計
+输入一个研究主题，自动执行多轮联网搜索、信息充分性判断与来源汇总，输出带可点击引用链接的结构化研究报告。
 
-- **手寫 ReAct 循環**：不依賴 LangChain / LangGraph，清晰實作 `plan -> search -> judge -> generate` 流程，硬上限最多 3 輪、每輪最多 5 個查詢。
-- **LLM 三級降級鏈**：依序嘗試 `Groq (openai/gpt-oss-120b)` → `Google Gemini Flash` → `OpenRouter 免費模型`，避免綁定單一供應商。
-- **單一免費搜尋源**：透過 DuckDuckGo 聯網搜尋，具備超時保護與失敗降級（回傳空列表、不崩潰）。
-- **固定四段結構化報告**：背景、關鍵發現（每條附來源 URL）、分歧點、參考連結，並於介面提供思考與搜尋軌跡檢視。
-- **輕量持久化**：每次運行結果追加記錄於 `data/runs.jsonl`，人工評估結果保存於 `data/eval.csv`。
+---
 
-## Non-goals（刻意不做）
+## 核心设计
 
-- 不做多搜索源聚合。
-- 不做自動評分（評估靠人工判斷引用支持度與整體可用性）。
-- 不做用戶系統、不做歷史記錄管理。
-- 不綁定任何單一 LLM 供應商。
+- **手写 ReAct 循环**：不依赖 LangChain / LangGraph，清晰实现 `plan -> search -> judge -> generate` 主循环，硬上限最多 **3 轮**、每轮最多 **5 个查询**。
+- **LLM 三级降级链**：严格按 `Groq (openai/gpt-oss-120b)` → `Google Gemini Flash` → `OpenRouter 免费模型` 顺序自动切换，全部不可用时抛出统一异常 `LLMUnavailable`，避免绑定单一供应商。
+- **单一免费搜索源与容错**：基于 DuckDuckGo 联网搜索，带超时控制与重试；失败时记录日志并返回空列表，绝不向上抛异常导致崩溃。
+- **固定四段结构化报告**：输出「背景 / 关键发现（每条附来源 URL）/ 分歧点 / 参考链接」，并在 UI 中展示完整执行轨迹。
+- **轻量持久化与可追溯**：每次运行追加记录到 `data/runs.jsonl`，10 主题人工评估记录保存在 `data/eval.csv`。
 
-## 本地運行
+## 架构流程
 
-1. 安裝依賴（Python 3.11+）：
-   ```bash
-   pip install -r requirements.txt
+```text
+User Topic (Streamlit UI: app.py)
+        │
+        ▼
+  agent/loop.py :: run(topic) -> Report   (唯一入口，异常兜底转为 status='failed')
+        │
+        ├── 1. Plan 查询规划 (agent/llm.py: Groq -> Gemini -> OpenRouter)
+        │
+        ├── 2. Search 联网搜索 (agent/search.py: DuckDuckGo, 超时/失败返回 [])
+        │        └─ 硬上限：最多 3 轮，每轮最多 5 个查询
+        │
+        ├── 3. Judge 信息充分性判断
+        │        ├─ 信息足够 / 连续无新增来源 / 达最大轮数 ──▶ 进入生成
+        │        └─ 信息不足 ──▶ 生成新关键词，进入下一轮 Search
+        │
+        └── 4. Generate 生成四段报告 (无来源或解析兜底标记 status='degraded')
+                 │
+                 ▼
+         追加日志至 data/runs.jsonl & 返回 Report
