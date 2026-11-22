@@ -3,63 +3,113 @@ from agent.loop import run
 
 st.set_page_config(page_title="AI Research Agent", page_icon="🔎", layout="centered")
 
-st.title("🔎 AI 研究助手")
-st.caption("輸入一個研究主題，自動多輪聯網搜尋並產出帶來源引用的結構化報告。")
+TEXTS = {
+    "en": {
+        "title": "🔎 AI Research Agent",
+        "subtitle": "Enter a research topic to run multi-round web searches and generate a structured report with citations.",
+        "input_label": "Research Topic",
+        "input_placeholder": "e.g., SQLite vs PostgreSQL for small web apps",
+        "run_btn": "Start Research",
+        "empty_warn": "Please enter a research topic first.",
+        "spinner": "Searching the web and synthesizing report (max 3 rounds)...",
+        "status_ok": "Status: Completed (ok)",
+        "status_degraded": "Status: Degraded — limited search results or fallback formatting triggered.",
+        "status_failed": "Status: Failed — an internal error occurred.",
+        "sec_bg": "1. Background",
+        "sec_findings": "2. Key Findings",
+        "sec_disagreements": "3. Disagreements & Trade-offs",
+        "sec_refs": "4. References",
+        "source_label": "Source",
+        "no_data": "No data available.",
+        "trace_title": "Execution Trace (ReAct Steps)",
+        "step_fmt": "Round {round} · {action} ({ms} ms)",
+    },
+    "zh": {
+        "title": "🔎 AI 研究助手",
+        "subtitle": "输入一个研究主题，自动执行多轮联网搜索并生成带来源引用的结构化报告。",
+        "input_label": "研究主题",
+        "input_placeholder": "例如：SQLite vs PostgreSQL 在小型 Web 应用中的对比",
+        "run_btn": "开始研究",
+        "empty_warn": "请先输入一个研究主题。",
+        "spinner": "正在联网搜索并生成报告（最多 3 轮）...",
+        "status_ok": "状态：完成 (ok)",
+        "status_degraded": "状态：降级 (degraded) — 搜索结果不足或触发了兜底解析。",
+        "status_failed": "状态：失败 (failed) — 运行过程中发生内部异常。",
+        "sec_bg": "1. 背景",
+        "sec_findings": "2. 关键发现",
+        "sec_disagreements": "3. 分歧点",
+        "sec_refs": "4. 参考链接",
+        "source_label": "来源",
+        "no_data": "暂无内容。",
+        "trace_title": "执行轨迹（ReAct 步骤）",
+        "step_fmt": "第 {round} 轮 · {action}（耗时 {ms} ms）",
+    },
+}
 
-topic = st.text_input(
-    "研究主題",
-    placeholder="例如：What is Model Context Protocol in AI?",
-)
+# 顶部语言切换（默认英文，方便简历展示）
+col_title, col_lang = st.columns([4, 1])
+with col_lang:
+    lang_choice = st.segmented_control(
+        "Language",
+        options=["EN", "中文"],
+        default="EN",
+        label_visibility="collapsed",
+    )
+lang = "zh" if lang_choice == "中文" else "en"
+t = TEXTS[lang]
 
-if st.button("開始研究", type="primary", disabled=not topic.strip()):
-    with st.spinner("正在規劃查詢、聯網搜尋與整理報告（約 30–60 秒）..."):
-        report = run(topic.strip())
+with col_title:
+    st.title(t["title"])
+st.caption(t["subtitle"])
 
-    # 狀態提示
-    if report.status == "failed":
-        st.error("本次研究執行失敗，請檢查 API Key 或網路連線後重試。")
-    elif report.status == "degraded":
-        st.warning("搜尋結果有限，報告內容可能不完整（已觸發降級模式）。")
+topic = st.text_input(t["input_label"], placeholder=t["input_placeholder"])
+
+if st.button(t["run_btn"], type="primary"):
+    if not topic.strip():
+        st.warning(t["empty_warn"])
     else:
-        st.success(f"研究完成！共蒐集 {len(report.references)} 個參考來源。")
+        with st.spinner(t["spinner"]):
+            report = run(topic.strip())
 
-    # 一、背景
-    st.header("背景")
-    st.write(report.background or "無相關背景資訊。")
+        if report.status == "ok":
+            st.success(t["status_ok"])
+        elif report.status == "degraded":
+            st.warning(t["status_degraded"])
+        else:
+            st.error(t["status_failed"])
 
-    # 二、關鍵發現
-    st.header("關鍵發現")
-    if report.findings:
-        for i, item in enumerate(report.findings, 1):
-            claim = item.get("claim", "")
-            source = item.get("source", "")
-            if source:
-                st.markdown(f"{i}. {claim} （[來源]({source})）")
-            else:
-                st.markdown(f"{i}. {claim}")
-    else:
-        st.write("暫無可引用之關鍵發現。")
+        st.subheader(t["sec_bg"])
+        st.write(report.background or t["no_data"])
 
-    # 三、分歧點
-    st.header("分歧點")
-    if report.disagreements:
-        for d in report.disagreements:
-            st.markdown(f"- {d}")
-    else:
-        st.write("目前資料中未發現明顯分歧。")
+        st.subheader(t["sec_findings"])
+        if report.findings:
+            for item in report.findings:
+                claim = item.get("claim", "")
+                source = item.get("source", "")
+                if source:
+                    st.markdown(f"- {claim} ([{t['source_label']}]({source}))")
+                else:
+                    st.markdown(f"- {claim}")
+        else:
+            st.write(t["no_data"])
 
-    # 四、參考連結
-    st.header("參考連結")
-    if report.references:
-        for url in report.references:
-            st.markdown(f"- [{url}]({url})")
-    else:
-        st.write("無參考連結。")
+        st.subheader(t["sec_disagreements"])
+        if report.disagreements:
+            for d in report.disagreements:
+                st.markdown(f"- {d}")
+        else:
+            st.write(t["no_data"])
 
-    # 折疊展示 ReAct 執行軌跡
-    with st.expander("查看 Agent 思考與搜尋軌跡"):
-        for step in report.steps:
-            st.markdown(
-                f"**Round {step.round} · `{step.action}`** （耗時 `{step.duration_ms} ms`）"
-            )
-            st.json({"input": step.input, "output": step.output})
+        st.subheader(t["sec_refs"])
+        if report.references:
+            for url in report.references:
+                st.markdown(f"- [{url}]({url})")
+        else:
+            st.write(t["no_data"])
+
+        with st.expander(t["trace_title"]):
+            for s in report.steps:
+                st.markdown(
+                    f"**{t['step_fmt'].format(round=s.round, action=s.action, ms=s.duration_ms)}**"
+                )
+                st.json({"input": s.input, "output": s.output})
