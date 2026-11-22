@@ -1,64 +1,66 @@
 # AI Research Agent
 
-> **在线体验（Live Demo）**：[https://laihan1-research-agent.streamlit.app/](https://laihan1-research-agent.streamlit.app/)
+English | [中文](README.zh.md)
 
-输入一个研究主题，自动执行多轮联网搜索、信息充分性判断与来源汇总，输出带可点击引用链接的结构化研究报告。
+> **Live Demo**: [https://laihan1-research-agent.streamlit.app/](https://laihan1-research-agent.streamlit.app/)
+
+Enter any research topic to run automated multi-round web searches, sufficiency checks, and source synthesis—producing a structured research report with clickable citations.
 
 ---
 
-## 核心设计
+## Core Design
 
-- **手写 ReAct 循环**：不依赖 LangChain / LangGraph，清晰实现 `plan -> search -> judge -> generate` 主循环，硬上限最多 **3 轮**、每轮最多 **5 个查询**。
-- **LLM 三级降级链**：严格按 `Groq (openai/gpt-oss-120b)` → `Google Gemini Flash` → `OpenRouter 免费模型` 顺序自动切换，全部不可用时抛出统一异常 `LLMUnavailable`，避免绑定单一供应商。
-- **单一免费搜索源与容错**：基于 DuckDuckGo 联网搜索，带超时控制与重试；失败时记录日志并返回空列表，绝不向上抛异常导致崩溃。
-- **固定四段结构化报告**：输出「背景 / 关键发现（每条附来源 URL）/ 分歧点 / 参考链接」，并在 UI 中展示完整执行轨迹。
-- **轻量持久化与可追溯**：每次运行追加记录到 `data/runs.jsonl`，10 主题人工评估记录保存在 `data/eval.csv`。
+- **Hand-written ReAct Loop**: Built from scratch without LangChain or LangGraph. Implements a clear `plan -> search -> judge -> generate` loop with hard limits of **max 3 rounds** and **max 5 queries per round**.
+- **3-Tier LLM Fallback Chain**: Strictly falls back in order: `Groq (openai/gpt-oss-120b)` → `Google Gemini Flash` → `OpenRouter (free tier)`. Raises a unified `LLMUnavailable` exception only if all providers fail, avoiding single-vendor lock-in.
+- **Fault-Tolerant Web Search**: Uses DuckDuckGo as a single free search source with timeout protection and retries. Failures are logged and gracefully degrade to an empty list without crashing the pipeline.
+- **Fixed 4-Section Report**: Outputs **Background**, **Key Findings** (every claim backed by a source URL), **Disagreements**, and **References**, plus a full execution trace in the UI.
+- **Lightweight Persistence**: Appends structured run logs to `data/runs.jsonl` and stores 10-topic manual evaluation results in `data/eval.csv`.
 
-## 架构流程
+## Architecture
 
 ```text
 User Topic (Streamlit UI: app.py)
         │
         ▼
-  agent/loop.py :: run(topic) -> Report   (唯一入口，异常兜底转为 status='failed')
+  agent/loop.py :: run(topic) -> Report   (Single entry point; catches all errors as status='failed')
         │
-        ├── 1. Plan 查询规划 (agent/llm.py: Groq -> Gemini -> OpenRouter)
+        ├── 1. Plan Queries (agent/llm.py: Groq -> Gemini -> OpenRouter)
         │
-        ├── 2. Search 联网搜索 (agent/search.py: DuckDuckGo, 超时/失败返回 [])
-        │        └─ 硬上限：最多 3 轮，每轮最多 5 个查询
+        ├── 2. Web Search (agent/search.py: DuckDuckGo; returns [] on timeout/error)
+        │        └─ Hard limits: max 3 rounds, max 5 queries/round
         │
-        ├── 3. Judge 信息充分性判断
-        │        ├─ 信息足够 / 连续无新增来源 / 达最大轮数 ──▶ 进入生成
-        │        └─ 信息不足 ──▶ 生成新关键词，进入下一轮 Search
+        ├── 3. Judge Sufficiency
+        │        ├─ Enough info / consecutive unproductive rounds / max rounds reached ──▶ Generate
+        │        └─ Gaps remain ──▶ Propose new queries & loop back to Search
         │
-        └── 4. Generate 生成四段报告 (无来源或解析兜底标记 status='degraded')
+        └── 4. Generate 4-Section Report (marks status='degraded' if no sources or parse fallback)
                  │
                  ▼
-         追加日志至 data/runs.jsonl & 返回 Report
+         Append log to data/runs.jsonl & return Report
 ```
 
-## Non-goals（刻意不做）
+## Non-goals
 
-- 不做多搜索源聚合。
-- 不做自动评分（评估依赖人工判断引用支持度与整体可用性）。
-- 不做用户系统、不做历史记录管理。
-- 不绑定任何单一 LLM 供应商。
+- No multi-search-engine aggregation.
+- No automated LLM-as-a-judge scoring (evaluation relies on manual verification of citation support and usability).
+- No user accounts or chat/history management.
+- No lock-in to any single LLM provider.
 
-## 评估结果摘要
+## Evaluation Summary
 
-在 10 个不同领域的技术与行业主题上进行了端到端实测与人工评估，完整记录见 [`data/eval.csv`](data/eval.csv)：
+Evaluated end-to-end across 10 diverse technical and industry topics. Full results are recorded in [`data/eval.csv`](data/eval.csv):
 
-| 指标 | 实测结果 | 说明 |
+| Metric | Result | Notes |
 | :--- | :--- | :--- |
-| **任务成功率** | **9 / 10 (`status=ok`)** | 1 个主题因 DuckDuckGo 连续无结果触发 `degraded` 降级保护（零崩溃） |
-| **引用支持度** | **100% (60 / 60)** | 9 份有效报告共 60 条关键发现，全部附带可点击来源 URL |
-| **整体可用性** | **7 高 / 2 中 / 1 低** | 9 份有效报告均可作为调研起点 |
+| **Task Completion** | **9 / 10 (`status=ok`)** | 1 topic gracefully degraded (`status=degraded`) due to consecutive empty DuckDuckGo results (zero crashes) |
+| **Citation Support** | **100% (60 / 60)** | All 60 key findings across the 9 valid reports include clickable source URLs |
+| **Overall Usability** | **7 High / 2 Medium / 1 Low** | All 9 completed reports serve as solid research starting points |
 
-**已知局限**：免费 DuckDuckGo 搜索偶发空结果限流，且极少数查询结果会混入搜索引擎广告跳转链接（如 `bing.com/aclick`），已在 `data/eval.csv` 备注中如实记录。
+**Known Limitations**: Free DuckDuckGo search occasionally rate-limits with empty results, and rare queries may surface search-engine ad redirect links (e.g., `bing.com/aclick`). Both behaviors are transparently documented in `data/eval.csv`.
 
-## 本地运行与测试
+## Local Setup & Testing
 
-1. **安装依赖（Python 3.11+）**
+1. **Install dependencies (Python 3.11+)**
    ```bash
    python -m venv .venv
    # Windows PowerShell:
@@ -69,18 +71,18 @@ User Topic (Streamlit UI: app.py)
    pip install -r requirements.txt
    ```
 
-2. **配置环境变量**
+2. **Configure environment variables**
    ```bash
    cp .env.example .env
    ```
-   在 `.env` 中填入至少一个可用的 API Key（推荐 `GROQ_API_KEY`），所有密钥均通过环境变量读取，不硬编码。
+   Add at least one valid API key in `.env` (`GROQ_API_KEY` recommended). All keys are loaded via environment variables and never hardcoded.
 
-3. **启动应用**
+3. **Run the app**
    ```bash
    streamlit run app.py
    ```
 
-4. **运行单元测试**（覆盖搜索超时/空结果降级、LLM 三级切换、步数上限终止与异常兜底）
+4. **Run unit tests** (covers search timeout/empty fallback, LLM 3-tier fallback, max-round termination, and top-level error handling)
    ```bash
-   python -m pytest tests/ -v
+   pytest tests/ -v
    ```
